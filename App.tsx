@@ -4,7 +4,7 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Float, PerspectiveCamera } from '@react-three/drei';
 import { Settings, Play, Volume2, VolumeX } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { GoogleGenAI } from "@google/genai";
+import * as genai from "@google/genai";
 import * as THREE from 'three';
 import NameCloud from './components/NameCloud';
 import InputModal from './components/InputModal';
@@ -325,15 +325,16 @@ const App: React.FC = () => {
     }
 
     try {
-      const ai = new GoogleGenAI({ apiKey: userApiKey });
-      const model = ai.getGenerativeModel({ model: "gemini-2.0-flash" });
+      // Correct v1 SDK initialization for Web
+      const client = new (genai as any).Client({ apiKey: userApiKey });
       
       const pronounceableNames = winnerNames.map(n => n.replace(/_/g, ' '));
       const textToSay = `Say cheerfully in Traditional Chinese: 恭喜！得獎者是 ${pronounceableNames.join(', ')}！`;
 
-      const response = await model.generateContent({
+      const response = await client.models.generateContent({
+        model: "gemini-2.0-flash",
         contents: [{ role: "user", parts: [{ text: textToSay }] }],
-        generationConfig: {
+        config: {
           responseModalities: ["AUDIO"],
           speechConfig: {
             voiceConfig: {
@@ -343,8 +344,7 @@ const App: React.FC = () => {
         } as any,
       });
 
-      const responseContent = await response.response;
-      const audioPart = responseContent.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+      const audioPart = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
       const base64Audio = audioPart?.inlineData?.data;
       
       if (base64Audio && audioCtxRef.current) {
