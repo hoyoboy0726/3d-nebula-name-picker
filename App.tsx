@@ -317,7 +317,7 @@ const App: React.FC = () => {
     }
   }, [soundEnabled]);
 
-  // Generate High-Quality AI Speech using Gemini
+  // Generate High-Quality AI Speech using Gemini 3 Flash (2026 Latest)
   const generateAIAnnouncement = useCallback(async (winnerNames: string[]) => {
     if (!userApiKey || !audioCtxRef.current) {
       console.warn("Skipping AI generation: Missing User API Key or Audio Context");
@@ -326,41 +326,41 @@ const App: React.FC = () => {
 
     try {
       const ai = new GoogleGenAI({ apiKey: userApiKey });
+      const model = ai.getGenerativeModel({ model: "gemini-3-flash" });
       
       const pronounceableNames = winnerNames.map(n => n.replace(/_/g, ' '));
-      
-      // Use a simpler "Say cheerfully" structure which is more stable with the API
       const textToSay = `Say cheerfully in Traditional Chinese: 恭喜！得獎者是 ${pronounceableNames.join(', ')}！`;
 
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash-preview-tts",
-        contents: [{ parts: [{ text: textToSay }] }],
-        config: {
-          responseModalities: ['AUDIO'], 
+      const response = await model.generateContent({
+        contents: [{ role: "user", parts: [{ text: textToSay }] }],
+        generationConfig: {
+          responseModalities: ["AUDIO"],
           speechConfig: {
             voiceConfig: {
               prebuiltVoiceConfig: { voiceName: 'Kore' }, 
             },
           },
-        },
+        } as any, 
       });
 
-      const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      const responseContent = await response.response;
+      const audioPart = responseContent.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+      const base64Audio = audioPart?.inlineData?.data;
       
       if (base64Audio && audioCtxRef.current) {
          const audioBytes = decodeBase64(base64Audio);
          const buffer = await pcmToAudioBuffer(audioBytes, audioCtxRef.current, 24000);
          aiSpeechBufferRef.current = buffer;
-         console.log("✅ AI Speech generated successfully");
+         console.log("✅ AI Speech generated successfully using Gemini 3 Flash");
       } else {
-         console.warn("⚠️ No audio data received in AI response");
+         console.warn("⚠️ No audio data received in Gemini 3 response");
+         aiSpeechBufferRef.current = null;
       }
-    } catch (error) {
-      // Detailed error logging to help debug 500 errors
-      console.error("❌ Gemini TTS generation failed:", JSON.stringify(error, null, 2));
+    } catch (error: any) {
+      console.error("❌ Gemini 3 TTS generation failed:", error);
       aiSpeechBufferRef.current = null;
     }
-  }, []);
+  }, [userApiKey]);
 
   // Browser TTS Fallback
   const speakWinnerFallback = useCallback((winnerNames: string[]) => {
